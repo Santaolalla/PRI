@@ -4,6 +4,7 @@ import javax.swing.*;
 import java.awt.*;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
+import java.sql.Connection;
 import java.text.DecimalFormat;
 import java.text.SimpleDateFormat;
 import java.util.Date;
@@ -151,7 +152,10 @@ public class PnlPrestamos extends JPanel {
         String frecuencia = (String) cbFrecuencia.getSelectedItem();
         String fechaInicio = txtFechaInicio.getText();
         
-        // Calcular cuota (ejemplo simplificado)
+        // Obtener usuario actual (ejemplo)
+        //int usuarioId = Sesion.getUsuarioActual().getId();
+        
+        // Calcular cuota
         double cuota = calcularCuota(cuantia, interes, tiempo, unidadTiempo, frecuencia);
         
         // Mostrar resumen
@@ -166,7 +170,35 @@ public class PnlPrestamos extends JPanel {
         
         JOptionPane.showMessageDialog(this, mensaje, "Préstamo Registrado", JOptionPane.INFORMATION_MESSAGE);
         
-        // Aquí podrías agregar código para guardar en una base de datos
+        // Guardar en BBDD
+        try (Connection conn = DriverManager.getConnection(DB_URL, DB_USER, DB_PASSWORD)) {
+            String sql = "INSERT INTO Prestamos ("
+                    + "usuario_id, prestamista, cuantia, tipo_interes, tasa_interes, "
+                    + "concepto, plazo, unidad_plazo, es_frecuente, frecuencia_pago, fecha_inicio) "
+                    + "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, TO_DATE(?, 'DD/MM/YYYY'))";
+            
+            try (PreparedStatement pstmt = conn.prepareStatement(sql)) {
+                pstmt.setInt(1, usuarioId);
+                pstmt.setString(2, prestamista);
+                pstmt.setDouble(3, cuantia);
+                pstmt.setString(4, "Fijo");  // Tipo de interés (fijo/variable)
+                pstmt.setDouble(5, interes);
+                pstmt.setString(6, asunto);
+                pstmt.setDouble(7, tiempo);
+                pstmt.setString(8, unidadTiempo);
+                pstmt.setString(9, "S".equals(frecuencia) ? "S" : "N");
+                pstmt.setString(10, frecuencia);
+                pstmt.setString(11, fechaInicio);
+                
+                int affectedRows = pstmt.executeUpdate();
+                if (affectedRows > 0) {
+                    JOptionPane.showMessageDialog(this, "Préstamo guardado en base de datos");
+                }
+            }
+        } catch (SQLException ex) {
+            JOptionPane.showMessageDialog(this, "Error al guardar: " + ex.getMessage(), 
+                                        "Error", JOptionPane.ERROR_MESSAGE);
+        }
     }
 
     private double calcularCuota(double cuantia, double interes, double tiempo, String unidadTiempo, String frecuencia) {
